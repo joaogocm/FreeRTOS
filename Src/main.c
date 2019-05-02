@@ -44,8 +44,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 osThreadId defaultTaskHandle;
-osThreadId myTask02Handle;
-osThreadId myTask03Handle;
+osThreadId Led01TaskHandleHandle;
+osThreadId Led02TaskHandleHandle;
+osSemaphoreId semaphore01Handle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -54,8 +55,8 @@ osThreadId myTask03Handle;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 void StartDefaultTask(void const * argument);
-void StartTask02(void const * argument);
-void StartTask03(void const * argument);
+void vLed01Task(void const * argument);
+void vLed02Task(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -102,6 +103,11 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* definition and creation of semaphore01 */
+  osSemaphoreDef(semaphore01);
+  semaphore01Handle = osSemaphoreCreate(osSemaphore(semaphore01), 1);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -119,13 +125,13 @@ int main(void)
   osThreadDef(defaultTask, StartDefaultTask, osPriorityIdle, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of myTask02 */
-  osThreadDef(myTask02, StartTask02, osPriorityNormal, 0, 128);
-  myTask02Handle = osThreadCreate(osThread(myTask02), NULL);
+  /* definition and creation of Led01TaskHandle */
+  osThreadDef(Led01TaskHandle, vLed01Task, osPriorityAboveNormal, 0, 128);
+  Led01TaskHandleHandle = osThreadCreate(osThread(Led01TaskHandle), NULL);
 
-  /* definition and creation of myTask03 */
-  osThreadDef(myTask03, StartTask03, osPriorityNormal, 0, 128);
-  myTask03Handle = osThreadCreate(osThread(myTask03), NULL);
+  /* definition and creation of Led02TaskHandle */
+  osThreadDef(Led02TaskHandle, vLed02Task, osPriorityNormal, 0, 128);
+  Led02TaskHandleHandle = osThreadCreate(osThread(Led02TaskHandle), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -204,7 +210,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, LED2_Pin|LED1_Pin|LED3_Pin|LED4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
@@ -212,8 +218,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PD12 PD13 PD14 PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
+  /*Configure GPIO pins : LED2_Pin LED1_Pin LED3_Pin LED4_Pin */
+  GPIO_InitStruct.Pin = LED2_Pin|LED1_Pin|LED3_Pin|LED4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -244,90 +250,84 @@ void StartDefaultTask(void const * argument)
   /* USER CODE END 5 */ 
 }
 
-/* USER CODE BEGIN Header_StartTask02 */
+/* USER CODE BEGIN Header_vLed01Task */
 /**
-* @brief Function implementing the myTask02 thread.
+* @brief Function implementing the Led01TaskHandle thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask02 */
-void StartTask02(void const * argument)
+/* USER CODE END Header_vLed01Task */
+void vLed01Task(void const * argument)
 {
-  /* USER CODE BEGIN StartTask02 */
-  uint32_t count = 0;
-  (void) argument;
-
+  /* USER CODE BEGIN vLed01Task */
+	uint32_t count = 0;
   /* Infinite loop */
   for(;;)
   {
-	  count = osKernelSysTick()+osKernelSysTickMicroSec(5000000); //5sec = 5000000us
+	if (semaphore01Handle != NULL)
+	{
+		/* Try to obtain the semaphore for 100ms */
+		if (osSemaphoreWait(semaphore01Handle, 100)==osOK)
+		{
+			count = osKernelSysTick() + osKernelSysTickMicroSec(5000000); //5sec = 5000000us
 
-	  /* Toggle LED1 every 200 ms for 5 s */
-	  while(count >= osKernelSysTick())
-	  {
-		  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-		  osDelay(200);
-	  }
+			/* Toggle LED1 every 200 ms for 5 seconds */
+			while (count >= osKernelSysTick())
+			{
+				HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+				osDelay(200);
+			}
 
-	  /* Turn off LED1 */
-	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+			/* Turn LED1 Off */
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
 
-	  /* Suspend Thread 1 */
-	  osThreadSuspend(NULL);
+			/* Release semaphore */
+			osSemaphoreRelease(semaphore01Handle);
 
-	  count = osKernelSysTick()+osKernelSysTickMicroSec(5000000);
-
-	  /* Toggle LED1 every 400 ms for 5 s */
-	  while (count >= osKernelSysTick())
-	  {
-	    HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-
-	    osDelay(400);
-	  }
-
-	  /* Resume Thread 2*/
-	  osThreadResume(myTask03Handle);
-
+			/* Suspend thread1 to execute thread2 */
+			osThreadSuspend(NULL);
+		}
+	}
   }
-  /* USER CODE END StartTask02 */
+  /* USER CODE END vLed01Task */
 }
 
-/* USER CODE BEGIN Header_StartTask03 */
+/* USER CODE BEGIN Header_vLed02Task */
 /**
-* @brief Function implementing the myTask03 thread.
+* @brief Function implementing the Led02TaskHandle thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_StartTask03 */
-void StartTask03(void const * argument)
+/* USER CODE END Header_vLed02Task */
+void vLed02Task(void const * argument)
 {
-  /* USER CODE BEGIN StartTask03 */
-	  uint32_t count = 0;
-	  (void) argument;
+  /* USER CODE BEGIN vLed02Task */
+	uint32_t count = 0;
+  /* Infinite loop */
+  for(;;)
+  {
+    if (semaphore01Handle != NULL)
+    {
+    	if (osSemaphoreWait(semaphore01Handle, 0) == osOK)
+    	{
+    		osThreadResume(Led01TaskHandleHandle);
 
-	  /* Infinite loop */
-	  for(;;)
-	  {
-		  count = osKernelSysTick()+osKernelSysTickMicroSec(10000000); //10sec = 10000000us
+    		count = osKernelSysTick() + osKernelSysTickMicroSec(5000000); //5sec = 5000000us
 
-		  /* Toggle LED2 every 500 ms for 10 s */
-		  while(count >= osKernelSysTick())
-		  {
-			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
-			  osDelay(500);
-		  }
+    		while (count >= osKernelSysTick())
+    		{
+    			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
 
-		  /* Turn off LED1 */
-		  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, GPIO_PIN_RESET);
+    			osDelay(200);
+    		}
 
-		  /* Resume Thread 1*/
-		  osThreadResume(myTask02Handle);
+    		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
 
-		  /* Suspend Thread 2 */
-		  osThreadSuspend(NULL);
-
-	  }
-  /* USER CODE END StartTask03 */
+    		osSemaphoreRelease(semaphore01Handle);
+    	}
+    }
+  }
+  /* USER CODE END vLed02Task */
 }
 
 /**
