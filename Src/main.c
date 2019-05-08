@@ -45,7 +45,11 @@
 /* Private variables ---------------------------------------------------------*/
 osThreadId defaultTaskHandle;
 osThreadId Led01TaskHandle;
-osSemaphoreId semaphore01Handle;
+osThreadId Led02TaskHandle;
+osThreadId Led03TaskHandle;
+osMutexId mutex01Handle;
+
+int HPC, MPC, LPC = 0;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -55,6 +59,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 void StartDefaultTask(void const * argument);
 void vLed01Task(void const * argument);
+void vLed02Task(void const * argument);
+void vLed03Task(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -97,14 +103,14 @@ int main(void)
 
   /* USER CODE END 2 */
 
+  /* Create the mutex(es) */
+  /* definition and creation of mutex01 */
+  osMutexDef(mutex01);
+  mutex01Handle = osMutexCreate(osMutex(mutex01));
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
-
-  /* Create the semaphores(s) */
-  /* definition and creation of semaphore01 */
-  osSemaphoreDef(semaphore01);
-  semaphore01Handle = osSemaphoreCreate(osSemaphore(semaphore01), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -124,8 +130,16 @@ int main(void)
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of Led01Task */
-  osThreadDef(Led01Task, vLed01Task, osPriorityNormal, 0, 128);
+  osThreadDef(Led01Task, vLed01Task, osPriorityHigh, 0, 128);
   Led01TaskHandle = osThreadCreate(osThread(Led01Task), NULL);
+
+  /* definition and creation of Led02Task */
+  osThreadDef(Led02Task, vLed02Task, osPriorityNormal, 0, 128);
+  Led02TaskHandle = osThreadCreate(osThread(Led02Task), NULL);
+
+  /* definition and creation of Led03Task */
+  osThreadDef(Led03Task, vLed03Task, osPriorityLow, 0, 128);
+  Led03TaskHandle = osThreadCreate(osThread(Led03Task), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -200,17 +214,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, LED2_Pin|LED1_Pin|LED3_Pin|LED4_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : USER_BUTTON_Pin */
-  GPIO_InitStruct.Pin = USER_BUTTON_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(USER_BUTTON_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LED2_Pin LED1_Pin LED3_Pin LED4_Pin */
   GPIO_InitStruct.Pin = LED2_Pin|LED1_Pin|LED3_Pin|LED4_Pin;
@@ -219,18 +226,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-
 }
 
 /* USER CODE BEGIN 4 */
- void HAL_GPIO_EXTI_Callback (uint16_t GPIO_Pin)
- {
-	 osSemaphoreRelease(semaphore01Handle);
-	 HAL_GPIO_TogglePin(GPIOD, LED2_Pin); //GREEN
- }
 
 /* USER CODE END 4 */
 
@@ -248,15 +246,7 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	  osThreadResume(Led01TaskHandle);
-	  if (semaphore01Handle != NULL)
-	  	{
-	  		/* Try to obtain the semaphore for 100 ms*/
-	  		if (osSemaphoreWait(semaphore01Handle, 100)==osOK)
-	  		{
-	  			//osDelay(200);
-	  		}
-	  	}
+	  osDelay(10);
   }
   /* USER CODE END 5 */ 
 }
@@ -274,20 +264,103 @@ void vLed01Task(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	if (semaphore01Handle != NULL)
-	{
-		/* Try to obtain the semaphore forever */
-		if (osSemaphoreWait(semaphore01Handle, osWaitForever)==osOK)
-		{
-			HAL_GPIO_TogglePin(GPIOD, LED1_Pin); //ORANGE
-			//osDelay(1000);
-		}
-		osSemaphoreRelease(semaphore01Handle);
+	  //osThreadResume(Led02TaskHandle);
+	  //osThreadResume(Led03TaskHandle);
+	  if(osMutexWait(mutex01Handle, 2) != osOK)
+	  {
+		  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+	  }
 
-		osThreadSuspend(Led01TaskHandle);
-	}
+	  osDelay(20);
+
+	  if(osMutexRelease(mutex01Handle) != osOK)
+	  {
+		  HAL_GPIO_TogglePin(GPIOD,LED1_Pin);
+	  }
+
+	  HPC++;
+	  HAL_GPIO_TogglePin(GPIOD, LED2_Pin);
+
+	  osThreadSuspend(NULL);
   }
   /* USER CODE END vLed01Task */
+}
+
+/* USER CODE BEGIN Header_vLed02Task */
+/**
+* @brief Function implementing the Led02Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_vLed02Task */
+void vLed02Task(void const * argument)
+{
+  /* USER CODE BEGIN vLed02Task */
+  /* Infinite loop */
+  for(;;)
+  {
+	  if (osMutexWait(mutex01Handle, 5000) == osOK)
+	  {
+		  if (osThreadGetState(Led01TaskHandle) != osThreadSuspended)
+		  {
+			  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+		  }
+		  else
+		  {
+			  if (osMutexRelease(mutex01Handle) != osOK)
+			  {
+				  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+			  }
+
+			  MPC++;
+			  HAL_GPIO_TogglePin(GPIOD, LED3_Pin);
+			  osThreadSuspend(NULL);
+		  }
+	  }
+	  else
+	  {
+		  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+	  }
+  }
+  /* USER CODE END vLed02Task */
+}
+
+/* USER CODE BEGIN Header_vLed03Task */
+/**
+* @brief Function implementing the Led03Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_vLed03Task */
+void vLed03Task(void const * argument)
+{
+  /* USER CODE BEGIN vLed03Task */
+  /* Infinite loop */
+  for(;;)
+  {
+    if (osMutexWait(mutex01Handle, 0) == osOK)
+    {
+    	if((osThreadGetState(Led01TaskHandle) != osThreadSuspended) || (osThreadGetState(Led02TaskHandle) != osThreadSuspended))
+    	{
+    		HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+    	}
+    	else
+    	{
+    		osThreadResume(Led01TaskHandle);
+    		osThreadResume(Led02TaskHandle);
+
+    		if (osMutexRelease(mutex01Handle) != osOK)
+    		{
+    			HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+    		}
+
+    		LPC++;
+    		HAL_GPIO_TogglePin(GPIOD, LED4_Pin);
+    		//osThreadSuspend(NULL);
+    	}
+    }
+  }
+  /* USER CODE END vLed03Task */
 }
 
 /**

@@ -34,6 +34,8 @@ cmsis_os.c:1303:10:osMailPut	24	static
 cmsis_os.c:1336:9:osMailGet	40	static
 cmsis_os.c:1392:10:osMailFree	0	static
 cmsis_os.c:1408:6:osSystickHandler	8	static
+cmsis_os.c:1427:15:osThreadGetState	8	static
+cmsis_os.c:1465:10:osThreadIsSuspended	8	static
 cmsis_os.c:1478:10:osThreadSuspend	8	static
 cmsis_os.c:1494:10:osThreadResume	8	static
 cmsis_os.c:1518:10:osThreadSuspendAll	8	static

@@ -4,6 +4,7 @@ tasks.c:4906:13:prvAddCurrentTaskToDelayedList	24	static
 tasks.c:3218:8:prvIdleTask	8	static
 tasks.c:726:13:xTaskCreate	40	static
 tasks.c:1106:7:vTaskDelete	16	static
+tasks.c:1327:13:eTaskGetState	16	static
 tasks.c:1398:14:uxTaskPriorityGet	8	static
 tasks.c:1420:14:uxTaskPriorityGetFromISR	8	static
 tasks.c:1460:7:vTaskPrioritySet	24	static
