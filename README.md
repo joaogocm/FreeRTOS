@@ -5,3 +5,4 @@ UM1722: https://www.st.com/content/ccc/resource/technical/document/user_manual/2
 Gabarito: https://github.com/Williamzhangtw/UM1722
 
 Referência das funções: https://www.keil.com/pack/doc/CMSIS/RTOS/html/group__CMSIS__RTOS.html
+                        https://www.freertos.org/a00106.html
