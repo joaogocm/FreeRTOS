@@ -21,6 +21,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -48,6 +49,8 @@ osThreadId Led01TaskHandle;
 osThreadId Led02TaskHandle;
 osThreadId Led03TaskHandle;
 osMutexId mutex01Handle;
+
+int HPC, MPC, LPC = 0;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -60,6 +63,7 @@ void vLed01Task(void const * argument);
 void vLed02Task(void const * argument);
 void vLed03Task(void const * argument);
 
+GPIO gpio1(GPIOA, 12);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -244,14 +248,14 @@ void StartDefaultTask(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  osDelay(10);
   }
   /* USER CODE END 5 */ 
 }
 
 /* USER CODE BEGIN Header_vLed01Task */
 /**
-* @brief Function implementing the Led01Task thread.
+* @brief Function implementing the Led01TaskHandle thread.
 * @param argument: Not used
 * @retval None
 */
@@ -262,7 +266,24 @@ void vLed01Task(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  //osThreadResume(Led02TaskHandle);
+	  //osThreadResume(Led03TaskHandle);
+	  if(osMutexWait(mutex01Handle, 2) != osOK)
+	  {
+		  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+	  }
+
+	  osDelay(20);
+
+	  if(osMutexRelease(mutex01Handle) != osOK)
+	  {
+		  HAL_GPIO_TogglePin(GPIOD,LED1_Pin);
+	  }
+
+	  HPC++;
+	  HAL_GPIO_TogglePin(GPIOD, LED2_Pin);
+
+	  osThreadSuspend(NULL);
   }
   /* USER CODE END vLed01Task */
 }
@@ -280,7 +301,28 @@ void vLed02Task(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+	  if (osMutexWait(mutex01Handle, 5000) == osOK)
+	  {
+		  if (osThreadGetState(Led01TaskHandle) != osThreadSuspended)
+		  {
+			  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+		  }
+		  else
+		  {
+			  if (osMutexRelease(mutex01Handle) != osOK)
+			  {
+				  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+			  }
+
+			  MPC++;
+			  HAL_GPIO_TogglePin(GPIOD, LED3_Pin);
+			  osThreadSuspend(NULL);
+		  }
+	  }
+	  else
+	  {
+		  HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+	  }
   }
   /* USER CODE END vLed02Task */
 }
@@ -298,7 +340,27 @@ void vLed03Task(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    if (osMutexWait(mutex01Handle, 0) == osOK)
+    {
+    	if((osThreadGetState(Led01TaskHandle) != osThreadSuspended) || (osThreadGetState(Led02TaskHandle) != osThreadSuspended))
+    	{
+    		HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+    	}
+    	else
+    	{
+    		osThreadResume(Led01TaskHandle);
+    		osThreadResume(Led02TaskHandle);
+
+    		if (osMutexRelease(mutex01Handle) != osOK)
+    		{
+    			HAL_GPIO_TogglePin(GPIOD, LED1_Pin);
+    		}
+
+    		LPC++;
+    		HAL_GPIO_TogglePin(GPIOD, LED4_Pin);
+    		//osThreadSuspend(NULL);
+    	}
+    }
   }
   /* USER CODE END vLed03Task */
 }
